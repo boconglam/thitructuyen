@@ -1,16 +1,42 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Student } from '../../types';
-import { GraduationCap, UserPlus, Search, Filter, Download, Edit2, Trash2, Award, Phone, Mail } from 'lucide-react';
+import {
+  GraduationCap,
+  UserPlus,
+  Search,
+  Filter,
+  Download,
+  Edit2,
+  Trash2,
+  Award,
+  Phone,
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+  Sparkles,
+  Lock,
+} from 'lucide-react';
 import { exportToExcel } from '../../utils/excelHelper';
 
 export const StudentManagement: React.FC = () => {
-  const { students, classes, addStudent, updateStudent, deleteStudent } = useApp();
+  const {
+    students,
+    classes,
+    addStudent,
+    updateStudent,
+    deleteStudent,
+    bulkDeleteStudents,
+    isStudentCodeUnique,
+    generateUniqueStudentCode,
+  } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [classFilter, setClassFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [formError, setFormError] = useState('');
 
   const [formData, setFormData] = useState({
     studentCode: '',
@@ -37,9 +63,10 @@ export const StudentManagement: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingStudent(null);
-    const nextNum = students.length + 1;
+    setFormError('');
+    const uniqueCode = generateUniqueStudentCode();
     setFormData({
-      studentCode: `HS2026-${String(nextNum).padStart(3, '0')}`,
+      studentCode: uniqueCode,
       fullName: '',
       classId: classes[0]?.id || '',
       gender: 'Nam',
@@ -55,6 +82,7 @@ export const StudentManagement: React.FC = () => {
 
   const handleOpenEdit = (s: Student) => {
     setEditingStudent(s);
+    setFormError('');
     setFormData({
       studentCode: s.studentCode,
       fullName: s.fullName,
@@ -70,24 +98,54 @@ export const StudentManagement: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleAutoGenerateCode = () => {
+    const code = generateUniqueStudentCode();
+    setFormData((prev) => ({ ...prev, studentCode: code }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.studentCode || !formData.fullName) {
-      alert('Vui lòng điền đủ Mã học sinh và Họ tên.');
+    setFormError('');
+
+    const cleanCode = formData.studentCode.trim().toUpperCase();
+    if (!cleanCode || !formData.fullName.trim()) {
+      setFormError('Vui lòng điền đủ Mã học sinh và Họ tên.');
+      return;
+    }
+
+    // Enforce student code uniqueness
+    const isUnique = isStudentCodeUnique(cleanCode, editingStudent?.id);
+    if (!isUnique) {
+      setFormError(`Mã học sinh "${cleanCode}" đã tồn tại trong hệ thống! Vui lòng chọn mã khác hoặc bấm tạo mã tự động.`);
       return;
     }
 
     const targetClass = classes.find((c) => c.id === formData.classId);
-    const className = targetClass?.name || 'Chưa xếp lớp';
+    if (!targetClass) {
+      setFormError('Vui lòng chọn lớp học hợp lệ.');
+      return;
+    }
+
+    // Check if target class is locked
+    if (targetClass.isLocked && (!editingStudent || editingStudent.classId !== targetClass.id)) {
+      setFormError(`Lớp ${targetClass.name} đã được khóa sổ danh sách! Không thể thêm hoặc chuyển học sinh vào lớp này.`);
+      return;
+    }
+
+    const className = targetClass.name;
 
     if (editingStudent) {
       updateStudent(editingStudent.id, {
         ...formData,
+        studentCode: cleanCode,
+        fullName: formData.fullName.trim(),
         className,
       });
     } else {
       addStudent({
         ...formData,
+        studentCode: cleanCode,
+        fullName: formData.fullName.trim(),
         className,
         totalPoints: 0,
         examCount: 0,
@@ -190,12 +248,56 @@ export const StudentManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedStudentIds.length > 0 && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2 text-xs font-bold text-rose-800">
+            <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+            <span>Đang chọn {selectedStudentIds.length} học sinh</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedStudentIds([])}
+              className="px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-semibold border border-slate-200 transition-colors cursor-pointer"
+            >
+              Bỏ chọn
+            </button>
+            <button
+              onClick={() => {
+                if (confirm(`Bạn có chắc chắn muốn xóa ${selectedStudentIds.length} học sinh đã chọn? Thao tác này không thể hoàn tác.`)) {
+                  bulkDeleteStudents(selectedStudentIds);
+                  setSelectedStudentIds([]);
+                }
+              }}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Xóa hàng loạt ({selectedStudentIds.length}) học sinh</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Students Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
             <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200">
               <tr>
+                <th className="py-3.5 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={filteredStudents.length > 0 && selectedStudentIds.length === filteredStudents.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedStudentIds(filteredStudents.map((s) => s.id));
+                      } else {
+                        setSelectedStudentIds([]);
+                      }
+                    }}
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </th>
                 <th className="py-3.5 px-4">Mã HS & Họ tên</th>
                 <th className="py-3.5 px-4">Lớp</th>
                 <th className="py-3.5 px-4">Giới tính / Ngày sinh</th>
@@ -207,7 +309,24 @@ export const StudentManagement: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
+                <tr
+                  key={s.id}
+                  className={`hover:bg-slate-50/70 transition-colors ${
+                    selectedStudentIds.includes(s.id) ? 'bg-indigo-50/40' : ''
+                  }`}
+                >
+                  <td className="py-3.5 px-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedStudentIds.includes(s.id)}
+                      onChange={() => {
+                        setSelectedStudentIds((prev) =>
+                          prev.includes(s.id) ? prev.filter((id) => id !== s.id) : [...prev, s.id]
+                        );
+                      }}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                  </td>
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs border border-emerald-100">
@@ -288,20 +407,57 @@ export const StudentManagement: React.FC = () => {
               <GraduationCap className="w-5 h-5 text-indigo-600" />
               {editingStudent ? `Chỉnh sửa hồ sơ ${editingStudent.fullName}` : 'Thêm học sinh mới'}
             </h3>
+
+            {formError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{formError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Mã học sinh *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                      Mã học sinh (Duy nhất) *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAutoGenerateCode}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                      title="Tạo mã học sinh duy nhất tự động"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Tạo mã mới</span>
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
+                    placeholder="ví dụ: HS2026-001"
                     value={formData.studentCode}
-                    onChange={(e) => setFormData({ ...formData, studentCode: e.target.value })}
-                    className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    onChange={(e) => setFormData({ ...formData, studentCode: e.target.value.toUpperCase() })}
+                    className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono font-semibold"
                   />
+                  {/* Uniqueness feedback */}
+                  {formData.studentCode.trim() && (
+                    <div className="mt-1">
+                      {isStudentCodeUnique(formData.studentCode, editingStudent?.id) ? (
+                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Mã hợp lệ & duy nhất
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-rose-600 font-semibold flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Mã đã tồn tại trong hệ thống!
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
                     Lớp học *
@@ -313,7 +469,7 @@ export const StudentManagement: React.FC = () => {
                   >
                     {classes.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} (Khối {c.grade})
+                        {c.name} (Khối {c.grade}) {c.isLocked ? '• [🔒 Đã khóa sổ]' : ''}
                       </option>
                     ))}
                   </select>

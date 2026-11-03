@@ -56,6 +56,7 @@ export interface SchoolClass {
   homeroomTeacherName?: string;
   room?: string;
   studentCount: number;
+  isLocked?: boolean; // Khóa danh sách lớp - không cho sửa đổi danh sách học sinh khi đã chốt
 }
 
 export interface Student {
@@ -145,6 +146,9 @@ export interface Exam {
   assignedClassIds: string[]; // Các lớp được phép dự thi
   createdBy: string;
   createdAt: string;
+  isResultsLocked?: boolean; // Khóa kết quả sau khi kết thúc hội thi
+  resultsLockedAt?: string;
+  resultsLockedBy?: string;
 }
 
 export interface ViolationEvent {

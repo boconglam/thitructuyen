@@ -22,6 +22,8 @@ export const Header: React.FC = () => {
     currentRole,
     setCurrentRole,
     currentUser,
+    isLoggedIn,
+    logout,
     currentAcademicYear,
     moodleConfig,
     exportBackup,
@@ -47,7 +49,7 @@ export const Header: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight leading-tight">
-                    CỔNG THI ĐUA TRỰC TUYẾN
+                    CỔNG THI TRỰC TUYẾN
                   </h1>
                   <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     Ứng dụng độc lập
@@ -72,18 +74,19 @@ export const Header: React.FC = () => {
               >
                 <Download className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Bạn có chắc chắn muốn đăng xuất tài khoản [${currentUser.fullName}]?`)) {
-                    alert(`Đã đăng xuất tài khoản ${currentUser.fullName} thành công.`);
-                    setCurrentRole('student');
-                  }
-                }}
-                title="Đăng xuất"
-                className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              {currentUser && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Bạn có chắc chắn muốn đăng xuất tài khoản [${currentUser.fullName}]?`)) {
+                      logout();
+                    }
+                  }}
+                  title="Đăng xuất"
+                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -177,39 +180,45 @@ export const Header: React.FC = () => {
             </div>
 
             {/* Current user badge */}
-            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs border border-indigo-200">
-                {currentUser.fullName.slice(-1)}
-              </div>
-              <div className="text-left">
-                <div className="text-xs font-bold text-slate-800 leading-none">{currentUser.fullName}</div>
-                <div className="text-[10px] text-slate-400 capitalize mt-0.5">
-                  {currentRole === 'admin'
-                    ? 'Quản trị hệ thống'
-                    : currentRole === 'teacher'
-                    ? 'Giáo viên bộ môn'
-                    : currentRole === 'student'
-                    ? 'Học sinh dự thi'
-                    : 'Cán bộ coi thi'}
+            {currentUser ? (
+              <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs border border-indigo-200">
+                  {currentUser.fullName.slice(-1)}
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-bold text-slate-800 leading-none">{currentUser.fullName}</div>
+                  <div className="text-[10px] text-slate-400 capitalize mt-0.5">
+                    {currentRole === 'admin'
+                      ? 'Quản trị hệ thống'
+                      : currentRole === 'teacher'
+                      ? 'Giáo viên bộ môn'
+                      : currentRole === 'student'
+                      ? 'Học sinh dự thi'
+                      : 'Cán bộ coi thi'}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2 pl-2 border-l border-slate-200 text-xs text-slate-400">
+                <span>Chưa đăng nhập</span>
+              </div>
+            )}
 
             {/* Logout button */}
-            <button
-              onClick={() => {
-                if (confirm(`Bạn có chắc chắn muốn đăng xuất tài khoản [${currentUser.fullName}]?`)) {
-                  // Switch to student or prompt login
-                  alert(`Đã đăng xuất tài khoản ${currentUser.fullName} thành công.`);
-                  setCurrentRole('student');
-                }
-              }}
-              title="Đăng xuất khỏi hệ thống"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition-all cursor-pointer shadow-2xs"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Đăng xuất</span>
-            </button>
+            {currentUser && (
+              <button
+                onClick={() => {
+                  if (confirm(`Bạn có chắc chắn muốn đăng xuất tài khoản [${currentUser.fullName}]?`)) {
+                    logout();
+                  }
+                }}
+                title="Đăng xuất khỏi hệ thống"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition-all cursor-pointer shadow-2xs"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Đăng xuất</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

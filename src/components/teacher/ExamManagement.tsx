@@ -23,10 +23,14 @@ import {
   ShieldCheck,
   ChevronRight,
   X,
+  Lock,
+  Unlock,
+  Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 
 export const ExamManagement: React.FC = () => {
-  const { exams, questions, classes, addExam, updateExam, deleteExam, currentAcademicYear } = useApp();
+  const { exams, questions, classes, addExam, updateExam, deleteExam, toggleExamStatus, currentAcademicYear } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -215,8 +219,26 @@ export const ExamManagement: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const [modalError, setModalError] = useState('');
+
+  const handleGenerateExamCode = () => {
+    const subMap: Record<string, string> = {
+      'Toán học': 'TOAN',
+      'Tiếng Anh': 'ANH',
+      'Tin học': 'TIN',
+      'Vật lý': 'LY',
+      'Hóa học': 'HOA',
+      'Sinh học': 'SINH',
+    };
+    const prefix = subMap[formData.subject] || 'DE';
+    const num = exams.length + 1;
+    const generated = `${prefix}${formData.grade}-${String(num).padStart(3, '0')}`;
+    setFormData((prev) => ({ ...prev, code: generated }));
+  };
+
   const handleOpenEdit = (exam: Exam) => {
     setEditingExam(exam);
+    setModalError('');
     setFormData({
       code: exam.code,
       title: exam.title,
@@ -238,23 +260,28 @@ export const ExamManagement: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.code) {
-      alert('Vui lòng điền đủ mã và tiêu đề đề thi.');
+    setModalError('');
+    if (!formData.title.trim() || !formData.code.trim()) {
+      setModalError('Vui lòng điền đủ Mã đề thi và Tiêu đề kỳ thi.');
       return;
     }
 
     if (formData.questionIds.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 câu hỏi từ ngân hàng câu hỏi.');
+      setModalError('Vui lòng chọn ít nhất 1 câu hỏi từ ngân hàng câu hỏi.');
       return;
     }
 
     if (editingExam) {
       updateExam(editingExam.id, {
         ...formData,
+        code: formData.code.trim().toUpperCase(),
+        title: formData.title.trim(),
       });
     } else {
       addExam({
         ...formData,
+        code: formData.code.trim().toUpperCase(),
+        title: formData.title.trim(),
         academicYearId: currentAcademicYear.id,
       });
     }
@@ -418,10 +445,35 @@ export const ExamManagement: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <span className="text-xs text-slate-400">
-                Tạo bởi: <strong className="text-slate-600">{exam.createdBy}</strong>
-              </span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleExamStatus(exam.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    exam.status === 'ongoing'
+                      ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'
+                  }`}
+                  title={exam.status === 'ongoing' ? 'Đóng kỳ thi (Tạm dừng không cho thi)' : 'Mở kỳ thi trực tuyến ngay'}
+                >
+                  {exam.status === 'ongoing' ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Đóng kỳ thi</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlayCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Mở kỳ thi</span>
+                    </>
+                  )}
+                </button>
+
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  Tạo bởi: <strong className="text-slate-600">{exam.createdBy}</strong>
+                </span>
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
@@ -464,18 +516,38 @@ export const ExamManagement: React.FC = () => {
               <FileText className="w-5 h-5 text-indigo-600" />
               {editingExam ? `Chỉnh sửa đề thi ${editingExam.code}` : 'Thiết lập kỳ thi & Đề thi trực tuyến mới'}
             </h3>
+
+            {modalError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Mã đề thi *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                      Mã đề thi *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateExamCode}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                      title="Tạo mã đề thi tự động theo môn và khối"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Tạo mã</span>
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
+                    placeholder="ví dụ: TOAN12-GK1"
                     value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono font-bold"
                   />
                 </div>
                 <div>
@@ -536,47 +608,87 @@ export const ExamManagement: React.FC = () => {
                 ></textarea>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Thời lượng làm bài (phút)
-                  </label>
-                  <input
-                    type="number"
-                    min={5}
-                    max={180}
-                    value={formData.durationMinutes}
-                    onChange={(e) => setFormData({ ...formData, durationMinutes: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
+              {/* Time Configuration Section */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                  Cài đặt Thời gian & Trạng thái thi
+                </span>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      Thời lượng làm bài (phút) *
+                    </label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={180}
+                      value={formData.durationMinutes}
+                      onChange={(e) => setFormData({ ...formData, durationMinutes: Number(e.target.value) })}
+                      className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      Thang điểm tối đa
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={formData.totalPoints}
+                      onChange={(e) => setFormData({ ...formData, totalPoints: Number(e.target.value) })}
+                      className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      Mở / Đóng kỳ thi *
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value as ExamStatus })}
+                      className={`w-full px-3 py-2 text-sm font-bold border rounded-lg focus:outline-none ${
+                        formData.status === 'ongoing'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-white text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      <option value="ongoing">🟢 Đang mở thi (Cho phép thi)</option>
+                      <option value="scheduled">🟡 Sắp diễn ra (Lên lịch)</option>
+                      <option value="draft">⚪ Bản nháp (Chưa mở)</option>
+                      <option value="completed">🔴 Đã đóng / Kết thúc</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Thang điểm tối đa
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={formData.totalPoints}
-                    onChange={(e) => setFormData({ ...formData, totalPoints: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Trạng thái
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as ExamStatus })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="ongoing">Đang diễn ra (Mở thi)</option>
-                    <option value="scheduled">Sắp diễn ra</option>
-                    <option value="draft">Bản nháp</option>
-                    <option value="completed">Đã kết thúc</option>
-                  </select>
+
+                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-200">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Thời điểm mở đề</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="YYYY-MM-DD HH:mm (ví dụ: 2026-11-03 08:00)"
+                      value={formData.startTime}
+                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Thời điểm đóng đề</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="YYYY-MM-DD HH:mm (ví dụ: 2026-11-06 20:00)"
+                      value={formData.endTime}
+                      onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 

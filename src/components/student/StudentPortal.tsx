@@ -21,7 +21,7 @@ export const StudentPortal: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Find student record for currently logged in student
-  const student = students.find((s) => s.id === currentUser.studentId) || students[0];
+  const student = students.find((s) => s.id === currentUser?.studentId) || students[0];
 
   // My attempts
   const myAttempts = attempts.filter((a) => a.studentId === student.id);

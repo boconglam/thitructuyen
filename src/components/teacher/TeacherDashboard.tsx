@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
-import { HelpCircle, FileText, Radio, BarChart3 } from 'lucide-react';
+import { HelpCircle, FileText, Radio, BarChart3, School } from 'lucide-react';
 import { QuestionBankManagement } from './QuestionBankManagement';
 import { ExamManagement } from './ExamManagement';
 import { LiveProctorMonitor } from './LiveProctorMonitor';
 import { ReportsAndAnalytics } from '../reports/ReportsAndAnalytics';
+import { HomeroomClassManagement } from './HomeroomClassManagement';
 
-type TeacherTab = 'questions' | 'exams' | 'proctor' | 'reports';
+type TeacherTab = 'homeroom' | 'exams' | 'questions' | 'proctor' | 'reports';
 
 export const TeacherDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TeacherTab>('exams');
+  const [activeTab, setActiveTab] = useState<TeacherTab>('homeroom');
 
   const tabs = [
+    { id: 'homeroom', label: 'Quản trị Lớp chủ nhiệm & Báo cáo lớp', icon: School },
     { id: 'exams', label: 'Quản lý Cuộc thi & Đề thi', icon: FileText },
     { id: 'questions', label: 'Ngân hàng Câu hỏi', icon: HelpCircle },
     { id: 'proctor', label: 'Phòng Giám thị Trực tiếp', icon: Radio },
-    { id: 'reports', label: 'Báo cáo & Phân tích', icon: BarChart3 },
+    { id: 'reports', label: 'Báo cáo & Phân tích toàn trường', icon: BarChart3 },
   ];
 
   return (
@@ -43,6 +45,7 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
+      {activeTab === 'homeroom' && <HomeroomClassManagement />}
       {activeTab === 'exams' && <ExamManagement />}
       {activeTab === 'questions' && <QuestionBankManagement />}
       {activeTab === 'proctor' && <LiveProctorMonitor />}

@@ -8,6 +8,7 @@ import {
   Student,
   Question,
   Exam,
+  ExamStatus,
   ExamAttempt,
   AuditLog,
   StudyTopic,
@@ -37,10 +38,14 @@ import { testFirestoreConnection } from '../firebase/firebase';
 
 interface AppContextType {
   // Current session & role
-  currentUser: User;
+  currentUser: User | null;
   currentRole: UserRole;
+  isLoggedIn: boolean;
   setCurrentRole: (role: UserRole) => void;
   switchUser: (userId: string) => void;
+  login: (username: string, password?: string) => { success: boolean; message: string; user?: User };
+  loginAsRole: (role: UserRole) => void;
+  logout: () => void;
 
   // Academic Years
   academicYears: AcademicYear[];
@@ -54,6 +59,7 @@ interface AppContextType {
   addClass: (cls: Omit<SchoolClass, 'id'>) => void;
   updateClass: (id: string, updates: Partial<SchoolClass>) => void;
   deleteClass: (id: string) => void;
+  toggleClassLock: (id: string) => void;
 
   // Teachers
   teachers: Teacher[];
@@ -67,7 +73,10 @@ interface AppContextType {
   addStudent: (student: Omit<Student, 'id'>) => void;
   updateStudent: (id: string, updates: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
+  bulkDeleteStudents: (studentIds: string[]) => void;
   bulkAddStudents: (students: Omit<Student, 'id'>[]) => void;
+  isStudentCodeUnique: (code: string, excludeId?: string) => boolean;
+  generateUniqueStudentCode: () => string;
 
   // Users & Permissions
   users: User[];
@@ -90,6 +99,8 @@ interface AppContextType {
   addExam: (exam: Omit<Exam, 'id' | 'createdAt' | 'createdBy'>) => void;
   updateExam: (id: string, updates: Partial<Exam>) => void;
   deleteExam: (id: string) => void;
+  toggleExamStatus: (id: string) => void;
+  toggleLockExamResults: (id: string) => void;
 
   // Submissions & Proctoring
   attempts: ExamAttempt[];
@@ -147,11 +158,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return saved ? JSON.parse(saved) : initialUsers;
   });
 
-  const [currentRole, setCurrentRole] = useState<UserRole>('admin');
-
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    return users.find((u) => u.role === 'admin') || users[0];
-  });
+  // Default state: everyone is logged out
+  const [currentRole, setCurrentRole] = useState<UserRole>('student');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_academicYears`);
@@ -306,9 +316,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newLog: AuditLog = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       timestamp: formatted,
-      actorId: currentUser.id,
-      actorName: currentUser.fullName,
-      actorRole: currentRole,
+      actorId: currentUser ? currentUser.id : 'guest',
+      actorName: currentUser ? currentUser.fullName : 'Chưa đăng nhập / Khách',
+      actorRole: currentUser ? currentRole : 'student',
       action,
       module,
       description,
@@ -322,9 +332,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Switch role & current user
   const handleSetCurrentRole = (role: UserRole) => {
     setCurrentRole(role);
-    const targetUser = users.find((u) => u.role === role) || users[0];
-    setCurrentUser(targetUser);
-    logAction('LOGIN', 'USER', `Chuyển sang vai trò: ${role.toUpperCase()} (${targetUser.fullName})`);
+    if (isLoggedIn) {
+      const targetUser =
+        users.find((u) => u.role === role && u.status === 'active') ||
+        users.find((u) => u.role === role) ||
+        users[0];
+      setCurrentUser(targetUser);
+      logAction('LOGIN', 'USER', `Chuyển sang vai trò: ${role.toUpperCase()} (${targetUser.fullName})`);
+    }
   };
 
   const switchUser = (userId: string) => {
@@ -332,7 +347,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (u) {
       setCurrentUser(u);
       setCurrentRole(u.role);
+      setIsLoggedIn(true);
+      logAction('LOGIN', 'USER', `Chuyển đăng nhập sang tài khoản: ${u.fullName} (${u.role.toUpperCase()})`);
     }
+  };
+
+  const login = (username: string, _password?: string) => {
+    const clean = username.trim().toLowerCase();
+    const user = users.find(
+      (u) => u.username.toLowerCase() === clean || u.email.toLowerCase() === clean
+    );
+
+    if (!user) {
+      return { success: false, message: 'Tên đăng nhập hoặc email không tồn tại trong hệ thống!' };
+    }
+
+    if (user.status === 'locked') {
+      return { success: false, message: 'Tài khoản này hiện đang bị khóa tạm thời. Vui lòng liên hệ quản trị viên.' };
+    }
+
+    const updatedUser: User = {
+      ...user,
+      lastLogin: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    };
+
+    setUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+    setCurrentUser(updatedUser);
+    setCurrentRole(updatedUser.role);
+    setIsLoggedIn(true);
+
+    logAction('LOGIN', 'USER', `Đăng nhập thành công với vai trò: ${updatedUser.role.toUpperCase()} (${updatedUser.fullName})`);
+    return { success: true, message: `Chào mừng ${updatedUser.fullName} đã đăng nhập thành công!`, user: updatedUser };
+  };
+
+  const loginAsRole = (role: UserRole) => {
+    const user =
+      users.find((u) => u.role === role && u.status === 'active') ||
+      users.find((u) => u.role === role);
+    if (user) {
+      const updatedUser: User = {
+        ...user,
+        lastLogin: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      };
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+      setCurrentUser(updatedUser);
+      setCurrentRole(role);
+      setIsLoggedIn(true);
+      logAction('LOGIN', 'USER', `Đăng nhập nhanh với vai trò: ${role.toUpperCase()} (${updatedUser.fullName})`);
+    }
+  };
+
+  const logout = () => {
+    const prevName = currentUser ? currentUser.fullName : 'Tài khoản';
+    logAction('LOGOUT', 'USER', `Đăng xuất an toàn tài khoản [${prevName}] khỏi hệ thống.`);
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    setActiveExam(null);
+    setActiveAttempt(null);
   };
 
   // Academic Years
@@ -376,6 +447,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const target = classes.find((c) => c.id === id);
     setClasses((prev) => prev.filter((c) => c.id !== id));
     logAction('DELETE', 'CLASS', `Xóa lớp học: ${target?.name || id}`);
+  };
+
+  const toggleClassLock = (id: string) => {
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const newLocked = !c.isLocked;
+          logAction(
+            'UPDATE',
+            'CLASS',
+            `${newLocked ? 'Khóa sổ danh sách' : 'Mở khóa sổ danh sách'} lớp: ${c.name}`,
+            newLocked ? 'WARNING' : 'SUCCESS'
+          );
+          return { ...c, isLocked: newLocked };
+        }
+        return c;
+      })
+    );
   };
 
   // Teachers
@@ -425,6 +514,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     logAction('DELETE', 'STUDENT', `Xóa học sinh: ${target?.fullName || id}`);
   };
 
+  const bulkDeleteStudents = (studentIds: string[]) => {
+    if (!studentIds.length) return;
+    const count = studentIds.length;
+    setStudents((prev) => prev.filter((s) => !studentIds.includes(s.id)));
+    logAction('DELETE', 'STUDENT', `Xóa hàng loạt ${count} học sinh thành công.`);
+  };
+
   const bulkAddStudents = (newStudents: Omit<Student, 'id'>[]) => {
     const items: Student[] = newStudents.map((s, idx) => ({
       ...s,
@@ -432,6 +528,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
     setStudents((prev) => [...items, ...prev]);
     logAction('IMPORT', 'STUDENT', `Nhập dữ liệu thành công ${items.length} học sinh từ file Excel.`);
+  };
+
+  const isStudentCodeUnique = (code: string, excludeId?: string): boolean => {
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return false;
+    return !students.some((s) => s.studentCode.toUpperCase() === trimmed && s.id !== excludeId);
+  };
+
+  const generateUniqueStudentCode = (): string => {
+    const prefix = 'HS2026-';
+    let num = students.length + 1;
+    let candidate = `${prefix}${String(num).padStart(3, '0')}`;
+    while (students.some((s) => s.studentCode.toUpperCase() === candidate.toUpperCase())) {
+      num++;
+      candidate = `${prefix}${String(num).padStart(3, '0')}`;
+    }
+    return candidate;
   };
 
   // Users & Roles
@@ -496,7 +609,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...qData,
       id,
       createdAt: nowStr,
-      createdBy: currentUser.fullName,
+      createdBy: currentUser ? currentUser.fullName : 'Quản trị viên',
     };
     setQuestions((prev) => [newQuestion, ...prev]);
     logAction('CREATE', 'QUESTION_BANK', `Thêm câu hỏi mới mã: ${qData.code} (${qData.subject})`);
@@ -519,7 +632,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...q,
       id: `q-imp-${Date.now()}-${idx}`,
       createdAt: nowStr,
-      createdBy: currentUser.fullName,
+      createdBy: currentUser ? currentUser.fullName : 'Quản trị viên',
     }));
     setQuestions((prev) => [...items, ...prev]);
     logAction('IMPORT', 'QUESTION_BANK', `Nhập thành công ${items.length} câu hỏi vào ngân hàng từ Excel.`);
@@ -533,7 +646,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...examData,
       id,
       createdAt: nowStr,
-      createdBy: currentUser.fullName,
+      createdBy: currentUser ? currentUser.fullName : 'Quản trị viên',
     };
     setExams((prev) => [newExam, ...prev]);
     logAction('CREATE', 'EXAM', `Tạo cuộc thi/đề thi mới: ${examData.title} (${examData.code})`);
@@ -548,6 +661,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const target = exams.find((e) => e.id === id);
     setExams((prev) => prev.filter((e) => e.id !== id));
     logAction('DELETE', 'EXAM', `Xóa cuộc thi: ${target?.title || id}`);
+  };
+
+  const toggleExamStatus = (id: string) => {
+    setExams((prev) =>
+      prev.map((e) => {
+        if (e.id === id) {
+          const newStatus: ExamStatus = e.status === 'ongoing' ? 'completed' : 'ongoing';
+          logAction(
+            'UPDATE',
+            'EXAM',
+            `${newStatus === 'ongoing' ? 'Mở kỳ thi trực tuyến' : 'Đóng / Kết thúc kỳ thi'}: ${e.title} (${e.code})`,
+            newStatus === 'ongoing' ? 'SUCCESS' : 'WARNING'
+          );
+          return { ...e, status: newStatus };
+        }
+        return e;
+      })
+    );
+  };
+
+  const toggleLockExamResults = (id: string) => {
+    setExams((prev) =>
+      prev.map((e) => {
+        if (e.id === id) {
+          const newLocked = !e.isResultsLocked;
+          const nowStr = new Date().toLocaleString('vi-VN');
+          const adminName = currentUser ? currentUser.fullName : 'Quản trị viên';
+          logAction(
+            'UPDATE',
+            'EXAM',
+            `${newLocked ? 'Khóa sổ kết quả hội thi' : 'Mở khóa kết quả hội thi'}: ${e.title} (${e.code})`,
+            newLocked ? 'WARNING' : 'SUCCESS'
+          );
+          return {
+            ...e,
+            isResultsLocked: newLocked,
+            resultsLockedAt: newLocked ? nowStr : undefined,
+            resultsLockedBy: newLocked ? adminName : undefined,
+            status: newLocked ? 'completed' : e.status,
+          };
+        }
+        return e;
+      })
+    );
   };
 
   // Submissions & Proctoring
@@ -604,14 +761,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Active Exam Flow for Student
   const startExam = (examId: string): boolean => {
+    if (!isLoggedIn || !currentUser) {
+      console.warn('Yêu cầu xác thực đăng nhập tài khoản trước khi vào phòng thi.');
+      return false;
+    }
+
     const exam = exams.find((e) => e.id === examId);
     if (!exam) return false;
 
     // Check if student already submitted or disqualified
-    const currentStudent = students.find((s) => s.id === currentUser.studentId) || students[0];
+    const currentStudent = students.find((s) => s.id === currentUser?.studentId) || {
+      id: currentUser.id,
+      fullName: currentUser.fullName,
+      studentCode: currentUser.username.toUpperCase(),
+      className: 'Thí sinh tự do',
+      grade: 12,
+      academicYearId: currentAcademicYear.id,
+      status: 'active',
+      totalPoints: 0,
+      examsCompleted: 0,
+      rank: 1,
+    };
     const existing = attempts.find((a) => a.examId === examId && a.studentId === currentStudent.id);
     if (existing && existing.status !== 'in_progress') {
-      alert('Bạn đã hoàn thành hoặc bài thi này đã được ghi nhận trước đó.');
+      logAction('SECURITY_VIOLATION', 'PROCTORING', `Thí sinh ${currentStudent.fullName} cố gắng vào lại bài thi đã nộp: ${exam.title}`, 'WARNING');
       return false;
     }
 
@@ -817,7 +990,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const fullState = {
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
-      exportedBy: currentUser.fullName,
+      exportedBy: currentUser ? currentUser.fullName : 'Hệ thống Quản trị',
       system: 'CỔNG THI ĐUA TRỰC TUYẾN TDC3HTP',
       data: {
         academicYears,
@@ -904,8 +1077,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setMoodleConfig(initialMoodleConfig);
     setActiveExam(null);
     setActiveAttempt(null);
-    setCurrentRole('admin');
-    setCurrentUser(initialUsers[0]);
+    setCurrentRole('student');
+    setCurrentUser(null);
+    setIsLoggedIn(false);
     logAction('RESTORE', 'SYSTEM', 'Khôi phục hệ thống về dữ liệu mặc định ban đầu (Factory Reset).');
   };
 
@@ -914,8 +1088,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         currentUser,
         currentRole,
+        isLoggedIn,
         setCurrentRole: handleSetCurrentRole,
         switchUser,
+        login,
+        loginAsRole,
+        logout,
         academicYears,
         currentAcademicYear,
         addAcademicYear,
@@ -925,6 +1103,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addClass,
         updateClass,
         deleteClass,
+        toggleClassLock,
         teachers,
         addTeacher,
         updateTeacher,
@@ -934,7 +1113,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addStudent,
         updateStudent,
         deleteStudent,
+        bulkDeleteStudents,
         bulkAddStudents,
+        isStudentCodeUnique,
+        generateUniqueStudentCode,
         users,
         addUser,
         updateUser,
@@ -951,6 +1133,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addExam,
         updateExam,
         deleteExam,
+        toggleExamStatus,
+        toggleLockExamResults,
         attempts,
         addAttempt,
         updateAttempt,

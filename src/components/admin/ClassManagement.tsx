@@ -1,14 +1,28 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { SchoolClass } from '../../types';
-import { School, Plus, Users, Edit2, Trash2, Filter, Search, UserCheck } from 'lucide-react';
+import {
+  School,
+  Plus,
+  Users,
+  Edit2,
+  Trash2,
+  Filter,
+  Search,
+  UserCheck,
+  Lock,
+  Unlock,
+  AlertCircle,
+  Shield,
+} from 'lucide-react';
 
 export const ClassManagement: React.FC = () => {
-  const { classes, addClass, updateClass, deleteClass, teachers, currentAcademicYear } = useApp();
+  const { classes, addClass, updateClass, deleteClass, toggleClassLock, teachers, currentAcademicYear } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
+  const [modalError, setModalError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -16,6 +30,7 @@ export const ClassManagement: React.FC = () => {
     homeroomTeacherId: '',
     room: '',
     studentCount: 35,
+    isLocked: false,
   });
 
   const filteredClasses = classes.filter((c) => {
@@ -26,32 +41,37 @@ export const ClassManagement: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingClass(null);
+    setModalError('');
     setFormData({
       name: '',
       grade: 12,
       homeroomTeacherId: teachers[0]?.id || '',
       room: '',
       studentCount: 35,
+      isLocked: false,
     });
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (c: SchoolClass) => {
     setEditingClass(c);
+    setModalError('');
     setFormData({
       name: c.name,
       grade: c.grade,
       homeroomTeacherId: c.homeroomTeacherId || '',
       room: c.room || '',
       studentCount: c.studentCount,
+      isLocked: !!c.isLocked,
     });
     setIsModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) {
-      alert('Vui lòng nhập tên lớp.');
+    setModalError('');
+    if (!formData.name.trim()) {
+      setModalError('Vui lòng nhập tên lớp.');
       return;
     }
 
@@ -59,22 +79,24 @@ export const ClassManagement: React.FC = () => {
 
     if (editingClass) {
       updateClass(editingClass.id, {
-        name: formData.name,
+        name: formData.name.trim(),
         grade: Number(formData.grade),
         homeroomTeacherId: formData.homeroomTeacherId,
         homeroomTeacherName: teacher?.fullName,
         room: formData.room,
         studentCount: Number(formData.studentCount),
+        isLocked: formData.isLocked,
       });
     } else {
       addClass({
-        name: formData.name,
+        name: formData.name.trim(),
         grade: Number(formData.grade),
         academicYearId: currentAcademicYear.id,
         homeroomTeacherId: formData.homeroomTeacherId,
         homeroomTeacherName: teacher?.fullName,
         room: formData.room,
         studentCount: Number(formData.studentCount),
+        isLocked: formData.isLocked,
       });
     }
     setIsModalOpen(false);
@@ -136,14 +158,26 @@ export const ClassManagement: React.FC = () => {
         {filteredClasses.map((c) => (
           <div
             key={c.id}
-            className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-indigo-200 hover:shadow-md transition-all flex flex-col justify-between"
+            className={`bg-white rounded-xl border p-5 shadow-xs transition-all flex flex-col justify-between ${
+              c.isLocked ? 'border-amber-200 bg-amber-50/10' : 'border-slate-200 hover:border-indigo-200 hover:shadow-md'
+            }`}
           >
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
                   Khối {c.grade}
                 </span>
-                <span className="text-xs text-slate-400">{c.room || 'Chưa xếp phòng'}</span>
+                {c.isLocked ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                    <Lock className="w-3 h-3 text-rose-600" />
+                    Đã khóa danh sách
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <Unlock className="w-3 h-3 text-emerald-600" />
+                    Đang mở
+                  </span>
+                )}
               </div>
 
               <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-2">Lớp {c.name}</h3>
@@ -162,28 +196,47 @@ export const ClassManagement: React.FC = () => {
                   <Users className="w-4 h-4 text-slate-400" />
                   <span>Sĩ số: <strong className="text-indigo-600">{c.studentCount}</strong> học sinh</span>
                 </div>
+                <div className="text-xs text-slate-400">
+                  Phòng: <span className="text-slate-600 font-medium">{c.room || 'Chưa xếp phòng'}</span>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
               <button
-                onClick={() => handleOpenEdit(c)}
-                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                title="Sửa lớp học"
+                type="button"
+                onClick={() => toggleClassLock(c.id)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                  c.isLocked
+                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'
+                }`}
+                title={c.isLocked ? 'Mở khóa danh sách lớp' : 'Khóa sổ danh sách lớp'}
               >
-                <Edit2 className="w-4 h-4" />
+                {c.isLocked ? <Unlock className="w-3.5 h-3.5 text-slate-600" /> : <Lock className="w-3.5 h-3.5 text-amber-600" />}
+                <span>{c.isLocked ? 'Mở khóa' : 'Khóa sổ lớp'}</span>
               </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Bạn có chắc muốn xóa lớp ${c.name}?`)) {
-                    deleteClass(c.id);
-                  }
-                }}
-                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                title="Xóa lớp học"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleOpenEdit(c)}
+                  className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                  title="Sửa lớp học"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Bạn có chắc muốn xóa lớp ${c.name}?`)) {
+                      deleteClass(c.id);
+                    }
+                  }}
+                  className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                  title="Xóa lớp học"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -197,6 +250,14 @@ export const ClassManagement: React.FC = () => {
               <School className="w-5 h-5 text-indigo-600" />
               {editingClass ? `Chỉnh sửa lớp ${editingClass.name}` : 'Thêm lớp học mới'}
             </h3>
+
+            {modalError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -272,6 +333,20 @@ export const ClassManagement: React.FC = () => {
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
+              </div>
+
+              {/* Lock class checkbox */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">Khóa sổ danh sách lớp</span>
+                  <span className="text-[11px] text-slate-500">Khóa lớp để ngăn chặn thêm bớt hoặc đổi học sinh</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formData.isLocked}
+                  onChange={(e) => setFormData({ ...formData, isLocked: e.target.checked })}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

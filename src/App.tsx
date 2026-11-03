@@ -12,6 +12,7 @@ import { StudentPortal } from './components/student/StudentPortal';
 import { LiveProctorMonitor } from './components/teacher/LiveProctorMonitor';
 import { SecureExamRoom } from './components/exam/SecureExamRoom';
 import { ReportsAndAnalytics } from './components/reports/ReportsAndAnalytics';
+import { LoginPage } from './components/auth/LoginPage';
 import {
   BookOpen,
   FileCheck,
@@ -24,7 +25,12 @@ import {
 } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
-  const { currentRole, activeExam, setCurrentRole } = useApp();
+  const { currentRole, activeExam, setCurrentRole, currentUser, isLoggedIn } = useApp();
+
+  // Mặc định webapp ở trạng thái tất cả đều đã logout -> Hiện màn hình đăng nhập
+  if (!isLoggedIn || !currentUser) {
+    return <LoginPage />;
+  }
 
   // If taking an exam, show the full-screen secure exam room directly
   if (activeExam) {
@@ -46,7 +52,7 @@ const MainAppContent: React.FC = () => {
               Kiến trúc Hệ thống Cổng thi Trực tuyến Bảo mật cao
             </div>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              CỔNG THI ĐUA TRỰC TUYẾN
+              CỔNG THI TRỰC TUYẾN
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 font-mono mt-1">
               thitructuyen.tdc3htp.com • Ứng dụng độc lập • Giám sát AI đa tầng
@@ -132,7 +138,7 @@ const MainAppContent: React.FC = () => {
       <footer className="bg-white border-t border-slate-200 py-6 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
           <div>
-            © 2026 <strong>CỔNG THI ĐUA TRỰC TUYẾN TDC3HTP</strong> • Phiên bản 2.4.0 Bảo mật cao
+            © 2026 <strong>CỔNG THI TRỰC TUYẾN TDC3HTP</strong> • Phiên bản 2.4.0 Bảo mật cao
           </div>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
