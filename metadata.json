@@ -1,0 +1,11 @@
+{
+  "name": "Cổng Thi Trực Tuyến & Giám Sát Chống Gian Lận",
+  "description": "Hệ thống Cổng thi trực tuyến bảo mật cao, giám sát màn hình, chống gian lận đa tầng, phân quyền quản trị chi tiết, ngân hàng câu hỏi và báo cáo thống kê tự động.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

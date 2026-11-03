@@ -1,0 +1,199 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Tài khoản người dùng và phân quyền hệ thống",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "teacher", "student", "proctor"] },
+        "status": { "type": "string", "enum": ["active", "locked"] },
+        "createdAt": { "type": "string" },
+        "lastLogin": { "type": "string" }
+      },
+      "required": ["id", "username", "fullName", "email", "role", "status"]
+    },
+    "AcademicYear": {
+      "title": "AcademicYear",
+      "description": "Năm học và danh sách học kỳ",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "isCurrent": { "type": "boolean" }
+      },
+      "required": ["id", "code", "name", "startDate", "endDate", "isCurrent"]
+    },
+    "SchoolClass": {
+      "title": "SchoolClass",
+      "description": "Danh sách lớp học theo niên khóa",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "grade": { "type": "number" },
+        "academicYearId": { "type": "string" },
+        "homeroomTeacherId": { "type": "string" },
+        "homeroomTeacherName": { "type": "string" },
+        "room": { "type": "string" },
+        "studentCount": { "type": "number" }
+      },
+      "required": ["id", "name", "grade", "academicYearId"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Hồ sơ học sinh",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentCode": { "type": "string" },
+        "fullName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "gender": { "type": "string" },
+        "dateOfBirth": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" },
+        "totalPoints": { "type": "number" },
+        "examCount": { "type": "number" }
+      },
+      "required": ["id", "studentCode", "fullName", "classId"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Hồ sơ giáo viên bộ môn và chủ nhiệm",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teacherCode": { "type": "string" },
+        "fullName": { "type": "string" },
+        "gender": { "type": "string" },
+        "subject": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "isHomeroom": { "type": "boolean" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "teacherCode", "fullName", "subject"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Câu hỏi ngân hàng đề thi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade": { "type": "number" },
+        "topic": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "type": { "type": "string" },
+        "content": { "type": "string" },
+        "points": { "type": "number" }
+      },
+      "required": ["id", "code", "subject", "grade", "content"]
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Đề thi và cấu hình giám sát an ninh",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "totalPoints": { "type": "number" },
+        "passingScore": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "code", "title", "subject", "durationMinutes"]
+    },
+    "ExamAttempt": {
+      "title": "ExamAttempt",
+      "description": "Kết quả bài làm và lịch sử giám sát vi phạm",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "examId": { "type": "string" },
+        "examTitle": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentCode": { "type": "string" },
+        "className": { "type": "string" },
+        "startTime": { "type": "string" },
+        "submitTime": { "type": "string" },
+        "status": { "type": "string" },
+        "score": { "type": "number" },
+        "totalScore": { "type": "number" },
+        "passed": { "type": "boolean" }
+      },
+      "required": ["id", "examId", "studentId", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Lịch sử thao tác hệ thống và an ninh",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "action": { "type": "string" },
+        "module": { "type": "string" },
+        "description": { "type": "string" },
+        "ipAddress": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "actorName", "action", "module"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Danh sách tài khoản người dùng"
+    },
+    "/academicYears/{yearId}": {
+      "schema": { "$ref": "#/entities/AcademicYear" },
+      "description": "Danh sách năm học và học kỳ"
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/SchoolClass" },
+      "description": "Danh sách các lớp học"
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Danh sách hồ sơ học sinh"
+    },
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/Teacher" },
+      "description": "Danh sách giáo viên bộ môn"
+    },
+    "/questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Ngân hàng câu hỏi trắc nghiệm"
+    },
+    "/exams/{examId}": {
+      "schema": { "$ref": "#/entities/Exam" },
+      "description": "Đề thi và cấu hình an ninh phòng thi"
+    },
+    "/attempts/{attemptId}": {
+      "schema": { "$ref": "#/entities/ExamAttempt" },
+      "description": "Bài thi thí sinh và nhật ký vi phạm an ninh"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Nhật ký hệ thống và giám sát"
+    }
+  }
+}
